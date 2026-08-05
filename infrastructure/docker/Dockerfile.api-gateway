@@ -10,18 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Copy packages and service files
 COPY packages /app/packages
-COPY services/api-gateway /app/services/api-gateway
-COPY services/orchestration /app/services/orchestration
-COPY services/language-service /app/services/language-service
-COPY services/model-router /app/services/model-router
-COPY services/document-service /app/services/document-service
-COPY services/image-generation /app/services/image-generation
-COPY services/video-generation /app/services/video-generation
-COPY services/character-service /app/services/character-service
-COPY services/dataset-service /app/services/dataset-service
-COPY services/training-service /app/services/training-service
-COPY services/evaluation-service /app/services/evaluation-service
-COPY services/deployment-service /app/services/deployment-service
+COPY services /app/services
 
 # Install dependencies
 RUN pip install --no-cache-dir -e /app/packages/schemas \
@@ -32,6 +21,6 @@ RUN pip install --no-cache-dir -e /app/packages/schemas \
 
 EXPOSE 8000
 
-ENV PYTHONPATH=/app/services/api-gateway:/app/packages/schemas:/app/packages/database:/app/packages/model-clients
+ENV PYTHONPATH=/app:/app/services/api-gateway:/app/packages/schemas:/app/packages/database:/app/packages/model-clients
 
-CMD ["uvicorn", "services.api-gateway.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD exec uvicorn services.api-gateway.main:app --host 0.0.0.0 --port ${PORT:-8000}

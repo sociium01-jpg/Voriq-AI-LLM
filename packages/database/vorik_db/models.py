@@ -214,3 +214,83 @@ class ProviderCostRecordDB(Base):
     gpu_hours_used = Column(Float, default=0.0)
     total_cost_usd = Column(Float, default=0.0)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+# Agentic Platform & Tooling DB Entities
+class AgentDB(Base):
+    __tablename__ = "agents"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    agent_id = Column(String, unique=True, nullable=False)
+    agent_name = Column(String, nullable=False)
+    agent_version = Column(String, default="1.0.0")
+    agent_type = Column(String, nullable=False)
+    base_model = Column(String, nullable=False)
+    model_adapter = Column(String, nullable=True)
+    system_instructions = Column(Text, nullable=False)
+    allowed_tools = Column(JSON, default=list)
+    denied_tools = Column(JSON, default=list)
+    max_execution_steps = Column(Integer, default=25)
+    max_runtime_seconds = Column(Integer, default=300)
+    token_limit = Column(Integer, default=16384)
+    budget_limit_usd = Column(Float, default=2.0)
+    status = Column(String, default="production")
+    created_by = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class ToolDB(Base):
+    __tablename__ = "tools"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    tool_id = Column(String, unique=True, nullable=False)
+    name = Column(String, nullable=False)
+    description = Column(Text, nullable=False)
+    provider = Column(String, nullable=False)
+    category = Column(String, default="business_workflow")
+    risk_classification = Column(String, default="low")
+    approval_required = Column(Boolean, default=False)
+    enabled = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class AgentMemoryDB(Base):
+    __tablename__ = "agent_memories"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    user_id = Column(String, nullable=False)
+    tenant_id = Column(String, nullable=False)
+    memory_type = Column(String, nullable=False)
+    key = Column(String, nullable=False)
+    value = Column(JSON, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class AgentTraceDB(Base):
+    __tablename__ = "agent_traces"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    trace_id = Column(String, unique=True, nullable=False)
+    user_id = Column(String, nullable=False)
+    tenant_id = Column(String, nullable=False)
+    agent_id = Column(String, nullable=False)
+    model_id = Column(String, nullable=False)
+    plan = Column(JSON, nullable=True)
+    tool_calls = Column(JSON, default=list)
+    verification_status = Column(String, default="passed")
+    final_response = Column(Text, nullable=False)
+    cost_usd = Column(Float, default=0.0)
+    runtime_ms = Column(Float, default=0.0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class ApprovalQueueDB(Base):
+    __tablename__ = "approval_queue"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    ticket_id = Column(String, unique=True, nullable=False)
+    user_id = Column(String, nullable=False)
+    tenant_id = Column(String, nullable=False)
+    agent_id = Column(String, nullable=False)
+    tool_name = Column(String, nullable=False)
+    tool_inputs = Column(JSON, nullable=False)
+    risk_level = Column(String, default="high")
+    status = Column(String, default="pending")
+    reviewed_by = Column(String, nullable=True)
+    review_notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)

@@ -14,14 +14,25 @@ from vorik_schemas.models import (
     CharacterProfile, ImageGenerationRequest, VideoGenerationRequest, MediaJobResponse,
     DatasetRecordCreate, DatasetRecordResponse, TrainingConfig, ModelRecordResponse
 )
+from vorik_schemas.agent_schemas import (
+    AgentRegistration, ToolDefinition, AgentTask, AgentResponse, AgentTrace
+)
+from vorik_schemas.router_schemas import (
+    RoutingRequest, RoutingDecision, RoutingMode, PrivacyLevel
+)
 from auth import (
     hash_password, verify_password, create_access_token, get_current_user, require_role, TokenData
 )
 
+from services.model_router.universal_router import universal_router
+from services.orchestration.tool_registry import tool_registry
+from services.orchestration.tool_executor import ToolExecutor
+from services.orchestration.langgraph_runtime import langgraph_agent_runtime
+
 app = FastAPI(
-    title="Voriq AI API Gateway",
-    description="Multilingual, Multimodal AI Platform API Gateway (Phase 1 & Phase 2)",
-    version="1.0.0"
+    title="Voriq AI Universal Intelligence Gateway",
+    description="Universal Multi-Model & Agentic LLM Platform API Gateway",
+    version="2.4.0"
 )
 
 app.add_middleware(
@@ -32,13 +43,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# In-memory mock store for rapid local verification when DB container is optional
+tool_executor = ToolExecutor(tool_registry)
+
+# In-memory mock store
 USERS_DB: Dict[str, Dict[str, Any]] = {}
 CONVERSATIONS_DB: Dict[str, Dict[str, Any]] = {}
 MESSAGES_DB: Dict[str, List[Dict[str, Any]]] = {}
 CHARACTERS_DB: Dict[str, Dict[str, Any]] = {}
 MEDIA_JOBS_DB: Dict[str, Dict[str, Any]] = {}
 DATASETS_DB: Dict[str, Dict[str, Any]] = {}
+APPROVAL_QUEUE_DB: Dict[str, Dict[str, Any]] = {}
 MODELS_DB: Dict[str, Dict[str, Any]] = {
     "vorik-indic-v1": {
         "model_id": "vorik-indic-v1",
@@ -56,6 +70,11 @@ class LoginRequest(BaseModel):
     email: EmailStr
     password: str
 
+class ApprovalReviewRequest(BaseModel):
+    ticket_id: str
+    action: str  # 'approve' or 'reject'
+    notes: Optional[str] = None
+
 @app.get("/health")
 async def health_check():
     return {
@@ -66,8 +85,9 @@ async def health_check():
             "database": "online",
             "redis": "online",
             "llm_router": "ready",
-            "indic_engine": "ready",
-            "media_worker": "ready"
+            "universal_router": "ready",
+            "agent_runtime": "ready",
+            "tool_executor": "ready"
         }
     }
 
@@ -134,45 +154,140 @@ async def login(credentials: LoginRequest):
         )
     )
 
-@app.get("/auth/me", response_model=UserResponse)
-async def get_me(current_user: TokenData = Depends(get_current_user)):
-    return UserResponse(
-        id=current_user.user_id,
-        email=current_user.email,
-        full_name="Voriq User",
-        role=UserRole(current_user.role),
-        organisation_id=current_user.organisation_id,
-        created_at=datetime.utcnow()
-    )
+# UNIVERSAL ROUTER ENDPOINTS
+@app.get("/router/modes")
+async def list_routing_modes():
+    return {
+        "modes": ["auto", "fast", "reasoning", "research", "coding", "creative", "vision", "image", "video", "voice", "agent", "private"],
+        "default": "auto"
+    }
 
-# CHAT ENDPOINTS
-@app.post("/chat/conversations")
-async def create_conversation(
-    title: Optional[str] = "New Conversation",
+@app.post("/router/dispatch", response_model=RoutingDecision)
+async def dispatch_request(req: RoutingRequest):
+    return universal_router.route_request(req)
+
+# AGENT & TOOL REGISTRY ENDPOINTS
+@app.get("/agents/registry")
+async def list_agents():
+    return [
+        {"agent_id": "supervisor", "name": "Supervisor Router Agent", "status": "production", "agent_type": "supervisor"},
+        {"agent_id": "planner", "name": "Multi-Step Planner Agent", "status": "production", "agent_type": "planner"},
+        {"agent_id": "research", "name": "Multi-Source Research Agent", "status": "production", "agent_type": "research"},
+        {"agent_id": "coding", "name": "Polyglot Coding & Debug Agent", "status": "production", "agent_type": "coding"},
+        {"agent_id": "indian_language", "name": "Indic Script & Code-Mixed Agent", "status": "production", "agent_type": "indian_language"},
+        {"agent_id": "verification", "name": "Evidence Verification Agent", "status": "production", "agent_type": "verification"},
+    ]
+
+@app.get("/tools/registry")
+async def list_tools():
+    return tool_registry.list_tools()
+
+@app.post("/tools/execute")
+async def execute_tool(
+    tool_name: str,
+    tool_inputs: Dict[str, Any],
     current_user: TokenData = Depends(get_current_user)
 ):
-    conv_id = str(uuid.uuid4())
-    conv = {
-        "id": conv_id,
-        "title": title,
-        "user_id": current_user.user_id,
-        "organisation_id": current_user.organisation_id,
-        "pinned": False,
-        "archived": False,
-        "created_at": datetime.utcnow().isoformat()
+    res = await tool_executor.execute_tool_call(
+        tool_name=tool_name,
+        tool_inputs=tool_inputs,
+        user_id=current_user.user_id,
+        tenant_id=current_user.organisation_id or "default_tenant"
+    )
+    if res.get("status") == "awaiting_approval":
+        ticket_id = res["ticket_id"]
+        APPROVAL_QUEUE_DB[ticket_id] = {
+            "ticket_id": ticket_id,
+            "user_id": current_user.user_id,
+            "tenant_id": current_user.organisation_id or "default_tenant",
+            "tool_name": tool_name,
+            "tool_inputs": tool_inputs,
+            "risk_level": "high",
+            "status": "pending",
+            "created_at": datetime.utcnow().isoformat()
+        }
+    return res
+
+# HUMAN APPROVAL QUEUE ENDPOINTS
+@app.get("/approval/queue")
+async def list_approval_queue(current_user: TokenData = Depends(get_current_user)):
+    return list(APPROVAL_QUEUE_DB.values())
+
+@app.post("/approval/review")
+async def review_approval_ticket(
+    req: ApprovalReviewRequest,
+    current_user: TokenData = Depends(get_current_user)
+):
+    ticket = APPROVAL_QUEUE_DB.get(req.ticket_id)
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    ticket["status"] = "approved" if req.action == "approve" else "rejected"
+    ticket["reviewed_by"] = current_user.user_id
+    ticket["review_notes"] = req.notes or ""
+    return {"status": ticket["status"], "ticket_id": req.ticket_id}
+
+# AGENT RUNTIME EXECUTION
+@app.post("/agent/execute", response_model=AgentResponse)
+async def execute_agent_task(
+    task: AgentTask,
+    current_user: TokenData = Depends(get_current_user)
+):
+    return await langgraph_agent_runtime.execute_task(task)
+
+# MEDIA & CHARACTER ENDPOINTS
+@app.post("/media/image", response_model=MediaJobResponse)
+async def generate_image(
+    req: ImageGenerationRequest,
+    current_user: TokenData = Depends(get_current_user)
+):
+    job_id = str(uuid.uuid4())
+    job = {
+        "job_id": job_id,
+        "status": "completed",
+        "progress_percentage": 100.0,
+        "output_urls": [f"https://vorik.ai/generated/images/{job_id}.png"],
+        "created_at": datetime.utcnow()
     }
-    CONVERSATIONS_DB[conv_id] = conv
-    MESSAGES_DB[conv_id] = []
-    return conv
+    MEDIA_JOBS_DB[job_id] = job
+    return MediaJobResponse(**job)
 
-@app.get("/chat/conversations")
-async def list_conversations(current_user: TokenData = Depends(get_current_user)):
-    user_convs = [
-        c for c in CONVERSATIONS_DB.values()
-        if c["user_id"] == current_user.user_id
-    ]
-    return user_convs
+# DATASET & FINE-TUNING ENDPOINTS
+@app.post("/datasets/upload", response_model=DatasetRecordResponse)
+async def upload_dataset(
+    req: DatasetRecordCreate,
+    current_user: TokenData = Depends(get_current_user)
+):
+    dataset_id = f"ds-{uuid.uuid4().hex[:8]}"
+    record = {
+        "dataset_id": dataset_id,
+        "name": req.name,
+        "version": "1.0.0",
+        "language": req.language.value,
+        "quality_score": 0.96,
+        "pii_scan_status": "passed",
+        "copyright_review_status": "approved",
+        "approved_for_training": True,
+        "row_count": 15000
+    }
+    DATASETS_DB[dataset_id] = record
+    return DatasetRecordResponse(**record)
 
+@app.post("/training/launch")
+async def launch_training(
+    cfg: TrainingConfig,
+    current_user: TokenData = Depends(get_current_user)
+):
+    job_id = f"train-{uuid.uuid4().hex[:8]}"
+    return {
+        "job_id": job_id,
+        "status": "training",
+        "training_type": cfg.training_type,
+        "base_model": cfg.base_model,
+        "dataset_id": cfg.dataset_id,
+        "message": f"Training job {job_id} launched successfully on GPU worker."
+    }
+
+# CHAT ENDPOINTS
 @app.post("/chat/completions/stream")
 async def stream_chat(
     msg: ChatMessageCreate,
@@ -218,7 +333,6 @@ async def stream_chat(
 # INDIC LANGUAGE ENGINE ENDPOINTS
 @app.post("/language/detect", response_model=LanguageDetectionResult)
 async def detect_language(text: str):
-    # Heuristic & Regex script detection
     has_devanagari = any('\u0900' <= char <= '\u097F' for char in text)
     has_malayalam = any('\u0D00' <= char <= '\u0D7F' for char in text)
     has_tamil = any('\u0B80' <= char <= '\u0BFF' for char in text)
@@ -266,101 +380,6 @@ async def detect_language(text: str):
         is_code_mixed=is_code_mixed,
         confidence_score=0.95
     )
-
-@app.post("/language/translate", response_model=TranslationResponse)
-async def translate_text(req: TranslationRequest):
-    translated = f"[{req.target_language.value.upper()} TRANSLATION]: {req.text}"
-    return TranslationResponse(
-        original_text=req.text,
-        translated_text=translated,
-        source_language=req.source_language or LanguageEnum.ENGLISH,
-        target_language=req.target_language,
-        detected_script=req.target_script or ScriptEnum.LATIN
-    )
-
-# CHARACTER CONSISTENCY & MEDIA ENDPOINTS
-@app.post("/characters/create", response_model=CharacterProfile)
-async def create_character(
-    char: CharacterProfile,
-    current_user: TokenData = Depends(get_current_user)
-):
-    CHARACTERS_DB[char.character_id] = char.model_dump()
-    return char
-
-@app.post("/media/image", response_model=MediaJobResponse)
-async def generate_image(
-    req: ImageGenerationRequest,
-    current_user: TokenData = Depends(get_current_user)
-):
-    job_id = str(uuid.uuid4())
-    job = {
-        "job_id": job_id,
-        "status": "completed",
-        "progress_percentage": 100.0,
-        "output_urls": [f"https://vorik.ai/generated/images/{job_id}.png"],
-        "created_at": datetime.utcnow()
-    }
-    MEDIA_JOBS_DB[job_id] = job
-    return MediaJobResponse(**job)
-
-@app.post("/media/video", response_model=MediaJobResponse)
-async def generate_video(
-    req: VideoGenerationRequest,
-    current_user: TokenData = Depends(get_current_user)
-):
-    job_id = str(uuid.uuid4())
-    job = {
-        "job_id": job_id,
-        "status": "processing",
-        "progress_percentage": 45.0,
-        "output_urls": [],
-        "created_at": datetime.utcnow()
-    }
-    MEDIA_JOBS_DB[job_id] = job
-    return MediaJobResponse(**job)
-
-@app.get("/media/jobs/{job_id}", response_model=MediaJobResponse)
-async def get_media_job(job_id: str):
-    job = MEDIA_JOBS_DB.get(job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-    return MediaJobResponse(**job)
-
-# PHASE 2 FINE-TUNING & MODEL REGISTRY ENDPOINTS
-@app.post("/datasets/upload", response_model=DatasetRecordResponse)
-async def upload_dataset(
-    req: DatasetRecordCreate,
-    current_user: TokenData = Depends(get_current_user)
-):
-    dataset_id = f"ds-{uuid.uuid4().hex[:8]}"
-    record = {
-        "dataset_id": dataset_id,
-        "name": req.name,
-        "version": "1.0.0",
-        "language": req.language.value,
-        "quality_score": 0.96,
-        "pii_scan_status": "passed",
-        "copyright_review_status": "approved",
-        "approved_for_training": True,
-        "row_count": 15000
-    }
-    DATASETS_DB[dataset_id] = record
-    return DatasetRecordResponse(**record)
-
-@app.post("/training/launch")
-async def launch_training(
-    cfg: TrainingConfig,
-    current_user: TokenData = Depends(get_current_user)
-):
-    job_id = f"train-{uuid.uuid4().hex[:8]}"
-    return {
-        "job_id": job_id,
-        "status": "training",
-        "training_type": cfg.training_type,
-        "base_model": cfg.base_model,
-        "dataset_id": cfg.dataset_id,
-        "message": f"Training job {job_id} launched successfully on GPU worker."
-    }
 
 @app.get("/models/registry", response_model=List[ModelRecordResponse])
 async def list_models():
