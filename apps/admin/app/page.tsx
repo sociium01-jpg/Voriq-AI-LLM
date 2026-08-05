@@ -2,11 +2,11 @@
 
 import React, { useState } from 'react';
 import {
-  Shield, Database, Cpu, Layers, Activity, AlertTriangle, CheckCircle, Play, RotateCcw, BarChart3, Users, Lock
+  Shield, Database, Cpu, Layers, Activity, AlertTriangle, CheckCircle, Play, RotateCcw, BarChart3, Users, Lock, Server, Cloud, Globe
 } from 'lucide-react';
 
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState<'overview' | 'datasets' | 'training' | 'registry' | 'gpus'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'providers' | 'datasets' | 'training' | 'registry' | 'gpus'>('overview');
   const [canaryTraffic, setCanaryTraffic] = useState(10.0);
   const [isRolledBack, setIsRolledBack] = useState(false);
 
@@ -20,14 +20,14 @@ export default function AdminDashboard() {
           </div>
           <div>
             <h1 className="font-bold text-lg text-white">Voriq AI Admin Engine</h1>
-            <p className="text-xs text-secondaryText">Phase 2 Proprietary Model Control Panel</p>
+            <p className="text-xs text-secondaryText">Cloud-Agnostic Model & Training Provider Control Panel</p>
           </div>
         </div>
 
         <div className="flex items-center gap-4 text-xs">
           <span className="flex items-center gap-1.5 bg-green-500/15 text-green-400 border border-green-500/30 px-3 py-1.5 rounded-full">
             <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse"></span>
-            Model Gateway: Healthy
+            Cloud Router: Provider Independent
           </span>
           <div className="text-secondaryText">Role: <strong className="text-white">AI Administrator</strong></div>
         </div>
@@ -44,6 +44,15 @@ export default function AdminDashboard() {
             }`}
           >
             <BarChart3 className="w-4 h-4" /> System Overview
+          </button>
+
+          <button
+            onClick={() => setActiveTab('providers')}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium transition-colors ${
+              activeTab === 'providers' ? 'bg-accent/20 text-accent border border-accent/30' : 'text-secondaryText hover:text-white hover:bg-surface'
+            }`}
+          >
+            <Cloud className="w-4 h-4" /> Training Providers
           </button>
 
           <button
@@ -79,7 +88,7 @@ export default function AdminDashboard() {
               activeTab === 'gpus' ? 'bg-accent/20 text-accent border border-accent/30' : 'text-secondaryText hover:text-white hover:bg-surface'
             }`}
           >
-            <Activity className="w-4 h-4" /> GPU Worker Cluster
+            <Activity className="w-4 h-4" /> GPU Cluster Inventory
           </button>
         </aside>
 
@@ -87,27 +96,86 @@ export default function AdminDashboard() {
         <main className="flex-1 overflow-y-auto p-8 space-y-8">
           {activeTab === 'overview' && (
             <div className="space-y-6">
-              <h2 className="text-xl font-bold text-white">System Status & Overview</h2>
+              <h2 className="text-xl font-bold text-white">System Status & Provider Architecture</h2>
               <div className="grid grid-cols-4 gap-4">
                 <div className="glass-card p-5 rounded-2xl">
-                  <div className="text-xs text-secondaryText mb-1">Active Fine-Tuning Jobs</div>
-                  <div className="text-2xl font-bold text-accent">2 Jobs</div>
-                  <div className="text-[11px] text-green-400 mt-2">Hinglish-LoRA & Manglish-LoRA</div>
+                  <div className="text-xs text-secondaryText mb-1">Active Cloud Providers</div>
+                  <div className="text-2xl font-bold text-accent">5 Providers</div>
+                  <div className="text-[11px] text-green-400 mt-2">Vertex AI, GKE, RunPod, On-Prem</div>
                 </div>
                 <div className="glass-card p-5 rounded-2xl">
                   <div className="text-xs text-secondaryText mb-1">GPU Memory Utilization</div>
                   <div className="text-2xl font-bold text-white">64% Avg</div>
-                  <div className="text-[11px] text-secondaryText mt-2">NVIDIA H100 x 4 Cluster</div>
+                  <div className="text-[11px] text-secondaryText mt-2">Multi-Cloud GPU Pool</div>
                 </div>
                 <div className="glass-card p-5 rounded-2xl">
-                  <div className="text-xs text-secondaryText mb-1">Dataset Governance</div>
-                  <div className="text-2xl font-bold text-green-400">Passed</div>
-                  <div className="text-[11px] text-secondaryText mt-2">PII Scan & License Checked</div>
+                  <div className="text-xs text-secondaryText mb-1">Data Residency Status</div>
+                  <div className="text-2xl font-bold text-green-400">Enforced</div>
+                  <div className="text-[11px] text-secondaryText mt-2">India & On-Prem Rules Active</div>
                 </div>
                 <div className="glass-card p-5 rounded-2xl">
                   <div className="text-xs text-secondaryText mb-1">Canary Release Stage</div>
                   <div className="text-2xl font-bold text-white">{isRolledBack ? 'Rolled Back' : '10.0% Traffic'}</div>
                   <div className="text-[11px] text-secondaryText mt-2">Voriq Indic Foundation V1</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'providers' && (
+            <div className="space-y-6">
+              <h2 className="text-xl font-bold text-white">Cloud-Agnostic Training Providers</h2>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="glass-card p-5 rounded-2xl border border-surfaceBorder space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold text-white text-sm">Google Vertex AI Custom Training</h3>
+                    <span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full">Primary Production</span>
+                  </div>
+                  <div className="text-xs text-secondaryText space-y-1">
+                    <div><strong>Regions:</strong> us-central1, asia-south1</div>
+                    <div><strong>GPUs:</strong> NVIDIA A100 (80GB), H100 (80GB)</div>
+                    <div><strong>Hourly Cost:</strong> $3.67 / GPU hr</div>
+                    <div><strong>Health:</strong> Authenticated & Operational</div>
+                  </div>
+                </div>
+
+                <div className="glass-card p-5 rounded-2xl border border-surfaceBorder space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold text-white text-sm">Google Kubernetes Engine (GKE)</h3>
+                    <span className="text-xs bg-accent/20 text-accent px-2 py-0.5 rounded-full">Distributed Container</span>
+                  </div>
+                  <div className="text-xs text-secondaryText space-y-1">
+                    <div><strong>Regions:</strong> asia-south1 (Mumbai)</div>
+                    <div><strong>GPUs:</strong> NVIDIA A100 (80GB), L4</div>
+                    <div><strong>Hourly Cost:</strong> $2.95 / GPU hr</div>
+                    <div><strong>Health:</strong> PyTorchJob Operator Active</div>
+                  </div>
+                </div>
+
+                <div className="glass-card p-5 rounded-2xl border border-surfaceBorder space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold text-white text-sm">RunPod Secure Pods</h3>
+                    <span className="text-xs bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full">Spot / Low-Cost QLoRA</span>
+                  </div>
+                  <div className="text-xs text-secondaryText space-y-1">
+                    <div><strong>Regions:</strong> us-east</div>
+                    <div><strong>GPUs:</strong> NVIDIA A100 (80GB)</div>
+                    <div><strong>Hourly Cost:</strong> $1.89 / GPU hr</div>
+                    <div><strong>Health:</strong> Active API Connection</div>
+                  </div>
+                </div>
+
+                <div className="glass-card p-5 rounded-2xl border border-surfaceBorder space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold text-white text-sm">Voriq On-Premises GPU Cluster</h3>
+                    <span className="text-xs bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded-full">Air-Gapped Private</span>
+                  </div>
+                  <div className="text-xs text-secondaryText space-y-1">
+                    <div><strong>Regions:</strong> Local Datacenter</div>
+                    <div><strong>GPUs:</strong> NVIDIA H100 (80GB)</div>
+                    <div><strong>Hourly Cost:</strong> $0.00 (Self-Hosted)</div>
+                    <div><strong>Health:</strong> Air-Gapped Zero-Egress Active</div>
+                  </div>
                 </div>
               </div>
             </div>

@@ -23,6 +23,20 @@ from vorik_schemas.models import (
     TrainingConfig,
     ModelRecordResponse,
 )
+from vorik_schemas.provider_schemas import (
+    ProviderType,
+    JobState,
+    TrainingJobRequest,
+    TrainingJobResult,
+    TrainingJobStatus,
+    CostEstimate,
+    ResourceMetrics,
+    ModelArtifact,
+    ProviderHealth,
+    ProviderProfile,
+    InferenceDeploymentRequest,
+    InferenceDeploymentResult,
+)
 
 __all__ = [
     "UserRole",
@@ -48,4 +62,16 @@ __all__ = [
     "DatasetRecordResponse",
     "TrainingConfig",
     "ModelRecordResponse",
+    "ProviderType",
+    "JobState",
+    "TrainingJobRequest",
+    "TrainingJobResult",
+    "TrainingJobStatus",
+    "CostEstimate",
+    "ResourceMetrics",
+    "ModelArtifact",
+    "ProviderHealth",
+    "ProviderProfile",
+    "InferenceDeploymentRequest",
+    "InferenceDeploymentResult",
 ]
