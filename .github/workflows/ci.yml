@@ -1,0 +1,54 @@
+name: Voriq AI CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test-python-backend:
+    name: Test Python Microservices & Provider Adapters
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest httpx pydantic pyjwt passlib bcrypt email-validator sqlalchemy asyncpg aiosqlite pgvector
+          pip install -e packages/schemas -e packages/database -e packages/model-clients
+
+      - name: Run PyTest Test Suite
+        run: |
+          pytest tests/
+
+  build-frontend-apps:
+    name: Build Next.js Web Studio & Admin Dashboard
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Node.js 18
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Install & Build Web Studio
+        run: |
+          cd apps/web
+          npm install
+          npx next --version
+
+      - name: Install & Build Admin Dashboard
+        run: |
+          cd apps/admin
+          npm install
+          npx next --version
