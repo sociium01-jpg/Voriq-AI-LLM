@@ -25,6 +25,7 @@ from auth import (
 )
 
 from services.model_router.universal_router import universal_router
+from services.model_router.provider_interfaces import vorik_llm_engine
 from services.orchestration.tool_registry import tool_registry
 from services.orchestration.tool_executor import ToolExecutor
 from services.orchestration.langgraph_runtime import langgraph_agent_runtime
@@ -287,7 +288,7 @@ async def launch_training(
         "message": f"Training job {job_id} launched successfully on GPU worker."
     }
 
-# CHAT ENDPOINTS
+# REAL MODEL CHAT COMPLETION STREAMING ENDPOINT
 @app.post("/chat/completions/stream")
 async def stream_chat(
     msg: ChatMessageCreate,
@@ -313,17 +314,32 @@ async def stream_chat(
     }
     MESSAGES_DB[conv_id].append(user_msg)
 
+    # Route query dynamically through Voriq Universal Model Router
+    routing_req = RoutingRequest(
+        user_id=current_user.user_id,
+        tenant_id=current_user.organisation_id or "default_tenant",
+        request_text=msg.content,
+        mode=msg.model_override or "auto"
+    )
+    decision = universal_router.route_request(routing_req)
+
     async def generate_response():
-        assistant_text = f"Voriq AI Agent: Received query '{msg.content}'. Processing with Indic Multilingual Engine..."
-        for word in assistant_text.split(" "):
-            yield f"data: {word} \n\n"
+        full_text = []
+        async for token_chunk in vorik_llm_engine.stream_completion(
+            prompt=msg.content,
+            model_id=decision.selected_model_id,
+            agent_id=decision.selected_agent_id
+        ):
+            full_text.append(token_chunk)
+            yield f"data: {token_chunk}\n\n"
         yield "data: [DONE]\n\n"
 
         assistant_msg = {
             "id": str(uuid.uuid4()),
             "conversation_id": conv_id,
             "role": "assistant",
-            "content": assistant_text,
+            "content": "".join(full_text),
+            "model_used": decision.selected_model_id,
             "created_at": datetime.utcnow().isoformat()
         }
         MESSAGES_DB[conv_id].append(assistant_msg)
