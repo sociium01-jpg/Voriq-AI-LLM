@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: voriq-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-vorik}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vorik_secure_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-vorik_ai}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-vorik}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: voriq-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.api-gateway
+    container_name: voriq-api-gateway
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-vorik}:${POSTGRES_PASSWORD:-vorik_secure_pass}@postgres:5432/${POSTGRES_DB:-vorik_ai}
+      - REDIS_URL=redis://redis:6379/0
+      - JWT_SECRET=${JWT_SECRET:-vorik_ai_jwt_super_secret_key_change_in_production_32bytes}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  web-studio:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    container_name: voriq-web-studio
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api-gateway
+
+volumes:
+  postgres_data:
+  redis_data:

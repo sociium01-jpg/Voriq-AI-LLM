@@ -1,0 +1,37 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy packages and service files
+COPY packages /app/packages
+COPY services/api-gateway /app/services/api-gateway
+COPY services/orchestration /app/services/orchestration
+COPY services/language-service /app/services/language-service
+COPY services/model-router /app/services/model-router
+COPY services/document-service /app/services/document-service
+COPY services/image-generation /app/services/image-generation
+COPY services/video-generation /app/services/video-generation
+COPY services/character-service /app/services/character-service
+COPY services/dataset-service /app/services/dataset-service
+COPY services/training-service /app/services/training-service
+COPY services/evaluation-service /app/services/evaluation-service
+COPY services/deployment-service /app/services/deployment-service
+
+# Install dependencies
+RUN pip install --no-cache-dir -e /app/packages/schemas \
+    -e /app/packages/database \
+    -e /app/packages/model-clients \
+    -r /app/services/api-gateway/requirements.txt \
+    email-validator
+
+EXPOSE 8000
+
+ENV PYTHONPATH=/app/services/api-gateway:/app/packages/schemas:/app/packages/database:/app/packages/model-clients
+
+CMD ["uvicorn", "services.api-gateway.main:app", "--host", "0.0.0.0", "--port", "8000"]

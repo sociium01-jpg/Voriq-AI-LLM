@@ -1,0 +1,38 @@
+# Node
+node_modules/
+.next/
+out/
+build/
+dist/
+.pnpm-debug.log
+
+# Python
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Environment & Secrets
+.env
+.env.local
+.env.development.local
+.env.production.local
+*.pem
+*.key
+
+# Data & Models
+datasets/downloads/
+models/checkpoints/
+models/cache/
+*.bin
+*.safetensors
+*.onnx
+
+# OS
+.DS_Store
+Thumbs.db
