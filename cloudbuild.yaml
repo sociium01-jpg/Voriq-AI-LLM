@@ -1,0 +1,36 @@
+steps:
+  # 1. Build API Gateway Container Image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'asia-south1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/voriq-api-gateway:latest'
+      - '-f'
+      - 'infrastructure/docker/Dockerfile.api-gateway'
+      - '.'
+
+  # 2. Push API Gateway Image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'asia-south1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/voriq-api-gateway:latest'
+
+  # 3. Build Web Studio UI Container Image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'asia-south1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/voriq-web-studio:latest'
+      - '-f'
+      - 'apps/web/Dockerfile'
+      - 'apps/web'
+
+  # 4. Push Web Studio UI Image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'asia-south1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/voriq-web-studio:latest'
+
+images:
+  - 'asia-south1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/voriq-api-gateway:latest'
+  - 'asia-south1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/voriq-web-studio:latest'
