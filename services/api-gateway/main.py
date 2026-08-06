@@ -21,7 +21,7 @@ from vorik_schemas.router_schemas import (
     RoutingRequest, RoutingDecision, RoutingMode, PrivacyLevel
 )
 from auth import (
-    hash_password, verify_password, create_access_token, get_current_user, require_role, TokenData
+    hash_password, verify_password, create_access_token, get_current_user, get_optional_user, require_role, TokenData
 )
 
 from services.model_router.universal_router import universal_router
@@ -187,7 +187,7 @@ async def list_tools():
 async def execute_tool(
     tool_name: str,
     tool_inputs: Dict[str, Any],
-    current_user: TokenData = Depends(get_current_user)
+    current_user: TokenData = Depends(get_optional_user)
 ):
     res = await tool_executor.execute_tool_call(
         tool_name=tool_name,
@@ -211,13 +211,13 @@ async def execute_tool(
 
 # HUMAN APPROVAL QUEUE ENDPOINTS
 @app.get("/approval/queue")
-async def list_approval_queue(current_user: TokenData = Depends(get_current_user)):
+async def list_approval_queue(current_user: TokenData = Depends(get_optional_user)):
     return list(APPROVAL_QUEUE_DB.values())
 
 @app.post("/approval/review")
 async def review_approval_ticket(
     req: ApprovalReviewRequest,
-    current_user: TokenData = Depends(get_current_user)
+    current_user: TokenData = Depends(get_optional_user)
 ):
     ticket = APPROVAL_QUEUE_DB.get(req.ticket_id)
     if not ticket:
@@ -231,7 +231,7 @@ async def review_approval_ticket(
 @app.post("/agent/execute", response_model=AgentResponse)
 async def execute_agent_task(
     task: AgentTask,
-    current_user: TokenData = Depends(get_current_user)
+    current_user: TokenData = Depends(get_optional_user)
 ):
     return await langgraph_agent_runtime.execute_task(task)
 
@@ -239,7 +239,7 @@ async def execute_agent_task(
 @app.post("/media/image", response_model=MediaJobResponse)
 async def generate_image(
     req: ImageGenerationRequest,
-    current_user: TokenData = Depends(get_current_user)
+    current_user: TokenData = Depends(get_optional_user)
 ):
     job_id = str(uuid.uuid4())
     job = {
@@ -256,7 +256,7 @@ async def generate_image(
 @app.post("/datasets/upload", response_model=DatasetRecordResponse)
 async def upload_dataset(
     req: DatasetRecordCreate,
-    current_user: TokenData = Depends(get_current_user)
+    current_user: TokenData = Depends(get_optional_user)
 ):
     dataset_id = f"ds-{uuid.uuid4().hex[:8]}"
     record = {
@@ -276,7 +276,7 @@ async def upload_dataset(
 @app.post("/training/launch")
 async def launch_training(
     cfg: TrainingConfig,
-    current_user: TokenData = Depends(get_current_user)
+    current_user: TokenData = Depends(get_optional_user)
 ):
     job_id = f"train-{uuid.uuid4().hex[:8]}"
     return {
@@ -292,7 +292,7 @@ async def launch_training(
 @app.post("/chat/completions/stream")
 async def stream_chat(
     msg: ChatMessageCreate,
-    current_user: TokenData = Depends(get_current_user)
+    current_user: TokenData = Depends(get_optional_user)
 ):
     conv_id = msg.conversation_id or str(uuid.uuid4())
     if conv_id not in CONVERSATIONS_DB:

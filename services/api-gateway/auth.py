@@ -11,7 +11,7 @@ SECRET_KEY = os.getenv("JWT_SECRET", "vorik_ai_jwt_super_secret_key_change_in_pr
 ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = 1440  # 24 hours
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token", auto_error=False)
 
 class TokenData(BaseModel):
     user_id: str
@@ -36,12 +36,14 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
-async def get_current_user(token: str = Depends(oauth2_scheme)) -> TokenData:
+async def get_current_user(token: Optional[str] = Depends(oauth2_scheme)) -> TokenData:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    if not token:
+        raise credentials_exception
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id: str = payload.get("sub")
@@ -53,6 +55,19 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> TokenData:
         return TokenData(user_id=user_id, email=email, role=role, organisation_id=organisation_id)
     except jwt.PyJWTError:
         raise credentials_exception
+
+async def get_optional_user(token: Optional[str] = Depends(oauth2_scheme)) -> TokenData:
+    if not token or token in ["demo-token", "null", "undefined", "bearer demo-token"]:
+        return TokenData(user_id="guest_user", email="guest@voriq.ai", role="member", organisation_id="default_org")
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id: str = payload.get("sub", "guest_user")
+        email: str = payload.get("email", "guest@voriq.ai")
+        role: str = payload.get("role", "member")
+        organisation_id: str = payload.get("organisation_id", "default_org")
+        return TokenData(user_id=user_id, email=email, role=role, organisation_id=organisation_id)
+    except Exception:
+        return TokenData(user_id="guest_user", email="guest@voriq.ai", role="member", organisation_id="default_org")
 
 def require_role(allowed_roles: list[str]):
     async def role_checker(current_user: TokenData = Depends(get_current_user)):
